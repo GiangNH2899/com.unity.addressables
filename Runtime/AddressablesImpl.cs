@@ -170,7 +170,7 @@ namespace UnityEngine.AddressableAssets
             get { return Addressables.LibraryPath + StreamingAssetsSubFolder + "/" + PlatformMappingService.GetPlatformPathSubFolder(); }
         }
 
-        public const string WebGLStreamingAssetsPath = "https://dev.sandinh.com/game/chan6/StreamingAssets";
+        public const string WebGLStreamingAssetsPath = "https://dev.sandinh.com/chan-6-webgl/StreamingAssets";
 
         public string PlayerBuildDataPath
         {

@@ -378,12 +378,14 @@ namespace UnityEditor.AddressableAssets.GUI
         internal void DataSourceDropdownValueChanged(object sender, ProfileDataSourceDropdownWindow.DropdownWindowEventArgs e)
         {
             m_CustomGroupTypes[e.GroupType.GroupTypePrefix] = e.IsCustom;
-
-            var selectedProfile = GetSelectedProfile();
-            Undo.RecordObject(settings, "Variable value changed");
-            settings.profileSettings.SetValue(selectedProfile.id, e.GroupType.GetName(e.GroupType.GetVariableBySuffix(AddressableAssetSettings.kBuildPath)), e.Option.BuildPath);
-            settings.profileSettings.SetValue(selectedProfile.id, e.GroupType.GetName(e.GroupType.GetVariableBySuffix(AddressableAssetSettings.kLoadPath)), e.Option.LoadPath);
-            AddressableAssetUtility.OpenAssetIfUsingVCIntegration(settings);
+            if (!e.IsCustom)
+            {
+                var selectedProfile = GetSelectedProfile();
+                Undo.RecordObject(settings, "Variable value changed");
+                settings.profileSettings.SetValue(selectedProfile.id, e.GroupType.GetName(e.GroupType.GetVariableBySuffix(AddressableAssetSettings.kBuildPath)), e.Option.BuildPath);
+                settings.profileSettings.SetValue(selectedProfile.id, e.GroupType.GetName(e.GroupType.GetVariableBySuffix(AddressableAssetSettings.kLoadPath)), e.Option.LoadPath);
+                AddressableAssetUtility.OpenAssetIfUsingVCIntegration(settings);
+            }
         }
 
         private string DetermineOptionString(ProfileGroupType groupType)

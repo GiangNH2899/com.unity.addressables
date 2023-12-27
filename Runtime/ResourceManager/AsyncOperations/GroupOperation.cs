@@ -23,7 +23,6 @@ namespace UnityEngine.ResourceManagement.AsyncOperations
         GroupOperationSettings m_Settings;
         string debugName = null;
         private const int k_MaxDisplayedLocationLength = 45;
-        private const int k_MaxDebugNameLength = 2000;
 
         public GroupOperation()
         {
@@ -141,8 +140,7 @@ namespace UnityEngine.ResourceManagement.AsyncOperations
                 }
 
                 toBeDisplayed += "]";
-                if (toBeDisplayed.Length > k_MaxDebugNameLength)
-                    toBeDisplayed = toBeDisplayed.Substring(0, k_MaxDebugNameLength) + "...";
+
                 debugName = toBeDisplayed;
 
                 return debugName;
@@ -189,7 +187,6 @@ namespace UnityEngine.ResourceManagement.AsyncOperations
         protected override void Destroy()
         {
             ReleaseDependencies();
-            debugName = null;
         }
 
         protected override float Progress

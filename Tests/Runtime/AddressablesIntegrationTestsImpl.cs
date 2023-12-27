@@ -26,11 +26,6 @@ using UnityEngine.U2D;
 using Object = UnityEngine.Object;
 using Texture2D = UnityEngine.Texture2D;
 
-#if UNITY_EDITOR
-using UnityEditor;
-using UnityEditor.AddressableAssets.Settings;
-#endif
-
 namespace AddressableAssetsIntegrationTests
 {
     internal abstract partial class AddressablesIntegrationTests : IPrebuildSetup
@@ -147,6 +142,8 @@ namespace AddressableAssetsIntegrationTests
             Assert.IsNull(op.Result);
         }
 
+        const string InvalidKeyExceptionBaseMessage = "Exception of type 'UnityEngine.AddressableAssets.InvalidKeyException' was thrown.";
+
         [UnityTest]
         public IEnumerator InvalidKeyException_LoadAsset_NoKeyFound()
         {
@@ -164,8 +161,8 @@ namespace AddressableAssetsIntegrationTests
                     yield return handle;
                 }
 
-                InvalidKeyException expected = new InvalidKeyException(keyString, typeof(GameObject));
-                Assert.AreEqual(expected.FormatMessage(InvalidKeyException.Format.NoLocation), handle.OperationException.Message, "InvalidKeyException message not the same as expected for when the Location does not exist");
+                string message = $"{InvalidKeyExceptionBaseMessage} No Location found for Key={keyString}";
+                Assert.AreEqual(message, handle.OperationException.Message, "InvalidKeyException message not the same as expected for when the Location does not exist");
             }
             finally
             {
@@ -192,9 +189,9 @@ namespace AddressableAssetsIntegrationTests
                     yield return handle;
                 }
 
-                InvalidKeyException expected = new InvalidKeyException(keyString, typeof(TextAsset));
-                string expectedMessage = expected.FormatMessage(InvalidKeyException.Format.TypeMismatch, typeof(GameObject).FullName);
-                Assert.AreEqual(expectedMessage, handle.OperationException.Message,
+                string message =
+                    $"{InvalidKeyExceptionBaseMessage} No Asset found with for Key={keyString}. Key exists as Type={typeof(GameObject)}, which is not assignable from the requested Type={typeof(TextAsset)}";
+                Assert.AreEqual(message, handle.OperationException.Message,
                     "InvalidKeyException message not the same as expected for when a similar Location exists with same key and a different type");
             }
             finally
@@ -222,8 +219,8 @@ namespace AddressableAssetsIntegrationTests
                     yield return handle;
                 }
 
-                InvalidKeyException expected = new InvalidKeyException(keyString, typeof(TextAsset));
-                string message = expected.FormatMessage(InvalidKeyException.Format.MultipleTypeMismatch, otherAvailableTypesForKey);
+                string message =
+                    $"{InvalidKeyExceptionBaseMessage} No Asset found with for Key={keyString}. Key exists as multiple Types={otherAvailableTypesForKey}, which is not assignable from the requested Type={typeof(TextAsset)}";
                 bool isEqual = message == handle.OperationException.Message;
                 if (!isEqual)
                 {
@@ -243,12 +240,13 @@ namespace AddressableAssetsIntegrationTests
         }
 
         [UnityTest]
-        public IEnumerator InvalidKeyException_LoadAsset_AssetFromGUIDFoundWithDifferentType()
+        public IEnumerator InvalidKeyException_LoadAsset__AssetFromGUIDFoundWithDifferentType()
         {
-            if (string.IsNullOrEmpty(TypeName) || TypeName != "BuildScriptFastMode")
+            if (string.IsNullOrEmpty(TypeName) || TypeName != "BuildScriptFastMode" || TypeName == "BuildScriptVirtualMode")
             {
-                Assert.Ignore($"Skipping test {nameof(InvalidKeyException_LoadAsset_AssetFromGUIDFoundWithDifferentType)} for {TypeName}, Editor AssetDatabase based test.");
+                Assert.Ignore($"Skipping test {nameof(InvalidKeyException_LoadAsset__AssetFromGUIDFoundWithDifferentType)} for {TypeName}, Editor AssetDatabase based test.");
             }
+
 
             //Setup
             yield return Init();
@@ -275,8 +273,9 @@ namespace AddressableAssetsIntegrationTests
                     yield return handle;
                 }
 
-                InvalidKeyException expected = new InvalidKeyException(guid, typeof(TextAsset));
-                string message = expected.FormatMessage(InvalidKeyException.Format.TypeMismatch, typeof(GameObject).ToString());
+                string path = UnityEditor.AssetDatabase.GUIDToAssetPath(guid);
+                string message =
+                    $"{InvalidKeyExceptionBaseMessage} Could not load Asset with GUID={guid}, Path={path}. Asset exists with main Type={typeof(GameObject)}, which is not assignable from the requested Type={typeof(TextAsset)}";
                 Assert.AreEqual(message, handle.OperationException.Message,
                     "InvalidKeyException message not the same as expected for when a similar Location exists with same key and a different type");
             }
@@ -285,45 +284,6 @@ namespace AddressableAssetsIntegrationTests
                 //Cleanup
                 if (handle.IsValid())
                     handle.Release();
-                if (goLoadHandle.IsValid())
-                    goLoadHandle.Release();
-            }
-#endif
-        }
-
-        [UnityTest]
-        public IEnumerator InvalidKeyException_LoadAsset_AssetFromGUIDFoundInProject()
-        {
-            if (string.IsNullOrEmpty(TypeName) || TypeName != "BuildScriptFastMode" || TypeName == "BuildScriptVirtualMode")
-            {
-                Assert.Ignore($"Skipping test {nameof(InvalidKeyException_LoadAsset_AssetFromGUIDFoundWithDifferentType)} for {TypeName}, Editor AssetDatabase based test.");
-            }
-
-            //Setup
-            yield return Init();
-#if UNITY_EDITOR
-            var found = AssetDatabase.FindAssets("nonAddressableAsset");
-            Assert.GreaterOrEqual(found.Length, 1);
-
-            string keyString = found[0];
-            AsyncOperationHandle<GameObject> goLoadHandle = new AsyncOperationHandle<GameObject>();
-
-            try
-            {
-                //Test
-                goLoadHandle = m_Addressables.LoadAssetAsync<GameObject>(keyString);
-                yield return goLoadHandle;
-                Assert.AreEqual(goLoadHandle.Status, AsyncOperationStatus.Failed);
-
-                string path = UnityEditor.AssetDatabase.GUIDToAssetPath(keyString);
-                InvalidKeyException expected = new InvalidKeyException(keyString, typeof(GameObject));
-                string message = expected.FormatProjectAssetMessage(path, typeof(GameObject).FullName);
-                Assert.AreEqual(message, goLoadHandle.OperationException.Message,
-                    "InvalidKeyException message not the same as expected for when a asset in project is not addressable but attempting to load through guid");
-            }
-            finally
-            {
-                //Cleanup
                 if (goLoadHandle.IsValid())
                     goLoadHandle.Release();
             }
@@ -346,10 +306,9 @@ namespace AddressableAssetsIntegrationTests
                     handle = m_Addressables.LoadAssetsAsync<GameObject>(keys, null, Addressables.MergeMode.Union, true);
                 }
 
-                InvalidKeyException expectedEx = new InvalidKeyException(keys, typeof(GameObject));
                 string message = handle.OperationException.Message;
                 string types = "Types=System.String, System.Int32";
-                string expected = expectedEx.FormatMessage(InvalidKeyException.Format.MultipleTypesRequested);
+                string expected = $"{InvalidKeyExceptionBaseMessage} Enumerable key contains multiple Types. {types}, all Keys are expected to be strings";
 
                 bool equalOne = message == expected;
                 bool equalTwo = message == expected.Replace("Types=System.String, System.Int32", "System.Int32, Types=System.String");
@@ -377,9 +336,8 @@ namespace AddressableAssetsIntegrationTests
                 handle = m_Addressables.LoadAssetAsync<GameObject>(keysArray);
             }
 
-            InvalidKeyException expected = new InvalidKeyException(keysArray, typeof(GameObject));
-            string keysErrorString = expected.FormatMergeModeMessage(InvalidKeyException.Format.NoMergeMode);
-                //"Exception of type 'UnityEngine.AddressableAssets.InvalidKeyException' was thrown. No MergeMode is set to merge the multiple keys requested. Keys=noSuchKey1, noSuchKey2, Type=UnityEngine.GameObject";
+            string keysErrorString =
+                "Exception of type 'UnityEngine.AddressableAssets.InvalidKeyException' was thrown. No MergeMode is set to merge the multiple keys requested. Keys=noSuchKey1, noSuchKey2, Type=UnityEngine.GameObject";
             Assert.AreEqual(keysErrorString, handle.OperationException.Message);
             yield return handle;
 
@@ -403,12 +361,12 @@ namespace AddressableAssetsIntegrationTests
                     handle = m_Addressables.LoadAssetsAsync<TextAsset>(keysArray, null, Addressables.MergeMode.Union, true);
                 }
 
-                InvalidKeyException expected = new InvalidKeyException(keysArray, typeof(TextAsset), Addressables.MergeMode.Union);
-                StringBuilder stringBuilder = new StringBuilder(expected.FormatMergeModeMessage(InvalidKeyException.Format.MergeModeBase));
-                stringBuilder.Append(expected.FormatMergeModeMessage(InvalidKeyException.Format.NoLocation, null, "noSuchKey1"));
-                stringBuilder.Append(expected.FormatMergeModeMessage(InvalidKeyException.Format.NoLocation, null, "noSuchKey2"));
-                string expectedMessage = stringBuilder.ToString();
-                Assert.AreEqual(expectedMessage, handle.OperationException.Message, "Incorrect invalidKeyMessage. Expected to inform the two locations have for other type");
+                string expected = "Exception of type 'UnityEngine.AddressableAssets.InvalidKeyException' was thrown. " +
+                                  "No Union of Assets between Keys=noSuchKey1, noSuchKey2 with Type=UnityEngine.TextAsset" +
+                                  "\nNo Location found for Key=noSuchKey1" +
+                                  "\nNo Location found for Key=noSuchKey2";
+
+                Assert.AreEqual(expected, handle.OperationException.Message, "Incorrect invalidKeyMessage. Expected to inform the two locations have for other type");
                 yield return handle;
             }
             finally
@@ -434,10 +392,11 @@ namespace AddressableAssetsIntegrationTests
                     handle = m_Addressables.LoadAssetsAsync<TextAsset>(keysArray, null, Addressables.MergeMode.Union, true);
                 }
 
-                InvalidKeyException expected = new InvalidKeyException(keysArray, typeof(TextAsset), Addressables.MergeMode.Union);
-                StringBuilder stringBuilder = new StringBuilder(expected.FormatMergeModeMessage(InvalidKeyException.Format.MergeModeBase));
-                stringBuilder.Append(expected.FormatMergeModeMessage(InvalidKeyException.Format.UnionAvailableForKeys, "Keys=test0BASE, test1BASE", null, typeof(GameObject).FullName));
-                Assert.AreEqual(stringBuilder.ToString(), handle.OperationException.Message, "Incorrect invalidKeyMessage. Expected to inform the two locations have for other type");
+                string expected = "Exception of type 'UnityEngine.AddressableAssets.InvalidKeyException' was thrown. " +
+                                  "No Union of Assets between Keys=test0BASE, test1BASE with Type=UnityEngine.TextAsset" +
+                                  "\nUnion of Type=UnityEngine.GameObject found with Keys=test0BASE, test1BASE";
+
+                Assert.AreEqual(expected, handle.OperationException.Message, "Incorrect invalidKeyMessage. Expected to inform the two locations have for other type");
                 yield return handle;
             }
             finally
@@ -463,11 +422,12 @@ namespace AddressableAssetsIntegrationTests
                     handle = m_Addressables.LoadAssetsAsync<TextAsset>(keysArray, null, Addressables.MergeMode.Union, true);
                 }
 
-                InvalidKeyException expected = new InvalidKeyException(keysArray, typeof(TextAsset), Addressables.MergeMode.Union);
-                StringBuilder stringBuilder = new StringBuilder(expected.FormatMergeModeMessage(InvalidKeyException.Format.MergeModeBase));
-                stringBuilder.Append(expected.FormatMergeModeMessage(InvalidKeyException.Format.UnionAvailableForKeysWithoutOther, "Key=test0BASE", "Key=assetWithSubObjects", typeof(GameObject).FullName));
-                stringBuilder.Append(expected.FormatMergeModeMessage(InvalidKeyException.Format.UnionAvailableForKeysWithoutOther, "Key=assetWithSubObjects", "Key=test0BASE", typeof(TestObject).FullName));
-                Assert.AreEqual(stringBuilder.ToString(), handle.OperationException.Message, "Incorrect invalidKeyMessage. Expected to inform that a merge could be made for two different types");
+                string expected = "Exception of type 'UnityEngine.AddressableAssets.InvalidKeyException' was thrown. " +
+                                  "No Union of Assets between Keys=test0BASE, assetWithSubObjects with Type=UnityEngine.TextAsset" +
+                                  "\nUnion of Type=UnityEngine.GameObject found with Key=test0BASE. Without Key=assetWithSubObjects" +
+                                  "\nUnion of Type=UnityEngine.AddressableAssets.Tests.TestObject found with Key=assetWithSubObjects. Without Key=test0BASE";
+
+                Assert.AreEqual(expected, handle.OperationException.Message, "Incorrect invalidKeyMessage. Expected to inform that a merge could be made for two different types");
                 yield return handle;
             }
             finally
@@ -493,10 +453,11 @@ namespace AddressableAssetsIntegrationTests
                     handle = m_Addressables.LoadAssetsAsync<GameObject>(keysArray, null, Addressables.MergeMode.Intersection, true);
                 }
 
-                InvalidKeyException expected = new InvalidKeyException(keysArray, typeof(GameObject), Addressables.MergeMode.Intersection);
-                StringBuilder stringBuilder = new StringBuilder(expected.FormatMergeModeMessage(InvalidKeyException.Format.MergeModeBase));
-                stringBuilder.Append(expected.FormatMergeModeMessage(InvalidKeyException.Format.NoLocation, null, "noSuchKey"));
-                Assert.AreEqual(stringBuilder.ToString(), handle.OperationException.Message, "Incorrect invalidKeyMessage. Expected to error due to noSuchKey");
+                string expected = "Exception of type 'UnityEngine.AddressableAssets.InvalidKeyException' was thrown. " +
+                                  "No Intersection of Assets between Keys=test0BASE, noSuchKey with Type=UnityEngine.GameObject" +
+                                  "\nNo Location found for Key=noSuchKey";
+
+                Assert.AreEqual(expected, handle.OperationException.Message, "Incorrect invalidKeyMessage. Expected to error due to noSuchKey");
                 yield return handle;
             }
             finally
@@ -522,17 +483,17 @@ namespace AddressableAssetsIntegrationTests
                     handle = m_Addressables.LoadAssetsAsync<TextAsset>(keysArray, null, Addressables.MergeMode.Intersection, true);
                 }
 
-                InvalidKeyException expected = new InvalidKeyException(keysArray, typeof(TextAsset), Addressables.MergeMode.Intersection);
-                StringBuilder stringBuilder = new StringBuilder(expected.FormatMergeModeMessage(InvalidKeyException.Format.MergeModeBase));
-                stringBuilder.Append(expected.FormatMergeModeMessage(InvalidKeyException.Format.IntersectionAvailable, typeString:typeof(GameObject).FullName));
-                Assert.AreEqual(stringBuilder.ToString(), handle.OperationException.Message, "Incorrect invalidKeyMessage. Expected to inform that an intersection exists with GameObject");
+                string expected = "Exception of type 'UnityEngine.AddressableAssets.InvalidKeyException' was thrown. " +
+                                  "No Intersection of Assets between Keys=test0BASE, mixed with Type=UnityEngine.TextAsset" +
+                                  "\nAn Intersection exists for Type=UnityEngine.GameObject";
+
+                Assert.AreEqual(expected, handle.OperationException.Message, "Incorrect invalidKeyMessage. Expected to inform that an intersection exists with GameObject");
                 yield return handle;
             }
             finally
             {
                 //Cleanup
-                if (handle.IsValid())
-                    handle.Release();
+                handle.Release();
             }
         }
 
@@ -552,11 +513,12 @@ namespace AddressableAssetsIntegrationTests
                     handle = m_Addressables.LoadAssetsAsync<GameObject>(keysArray, null, Addressables.MergeMode.UseFirst, true);
                 }
 
-                InvalidKeyException expected = new InvalidKeyException(keysArray, typeof(GameObject), Addressables.MergeMode.UseFirst);
-                StringBuilder stringBuilder = new StringBuilder(expected.FormatMergeModeMessage(InvalidKeyException.Format.MergeModeBase));
-                stringBuilder.Append(expected.FormatMergeModeMessage(InvalidKeyException.Format.NoLocation, keysUnavailable: "noSuchKey1"));
-                stringBuilder.Append(expected.FormatMergeModeMessage(InvalidKeyException.Format.NoLocation, keysUnavailable: "noSuchKey2"));
-                Assert.AreEqual(stringBuilder.ToString(), handle.OperationException.Message, "Incorrect invalidKeyMessage. Expected to inform that all keys have no location");
+                string expected = "Exception of type 'UnityEngine.AddressableAssets.InvalidKeyException' was thrown. " +
+                                  "No UseFirst Asset within Keys=noSuchKey1, noSuchKey2 with Type=UnityEngine.GameObject" +
+                                  "\nNo Location found for Key=noSuchKey1" +
+                                  "\nNo Location found for Key=noSuchKey2";
+
+                Assert.AreEqual(expected, handle.OperationException.Message, "Incorrect invalidKeyMessage. Expected to inform that all keys have no location");
                 yield return handle;
             }
             finally
@@ -582,12 +544,12 @@ namespace AddressableAssetsIntegrationTests
                     handle = m_Addressables.LoadAssetsAsync<TextAsset>(keysArray, null, Addressables.MergeMode.UseFirst, true);
                 }
 
-                InvalidKeyException expected = new InvalidKeyException(keysArray, typeof(TextAsset), Addressables.MergeMode.UseFirst);
-                StringBuilder stringBuilder = new StringBuilder(expected.FormatMergeModeMessage(InvalidKeyException.Format.MergeModeBase));
-                stringBuilder.Append(expected.FormatMergeModeMessage(InvalidKeyException.Format.NoLocation, keysUnavailable: "noSuchKey"));
-                stringBuilder.Append(expected.FormatMergeModeMessage(InvalidKeyException.Format.KeyAvailableAsType, "test0BASE", null, typeof(GameObject).FullName));
-                string expectedMessage = stringBuilder.ToString();
-                Assert.AreEqual(expectedMessage, handle.OperationException.Message,
+                string expected = "Exception of type 'UnityEngine.AddressableAssets.InvalidKeyException' was thrown. " +
+                                  "No UseFirst Asset within Keys=test0BASE, noSuchKey with Type=UnityEngine.TextAsset" +
+                                  "\nNo Location found for Key=noSuchKey" +
+                                  "\nType=UnityEngine.GameObject exists for Key=test0BASE";
+
+                Assert.AreEqual(expected, handle.OperationException.Message,
                     "Incorrect invalidKeyMessage. Expected to inform that one key has no location and the other can be loaded with GameObject");
                 yield return handle;
             }
@@ -711,7 +673,7 @@ namespace AddressableAssetsIntegrationTests
             Assert.AreEqual(2, op.Result.Count);
             op.Release();
         }
-#if ENABLE_JSON_CATALOG
+#if !ENABLE_BINARY_CATALOG
         [UnityTest]
         public IEnumerator CanUseCustomAssetBundleResource_LoadFromCustomProvider()
         {
@@ -951,20 +913,18 @@ namespace AddressableAssetsIntegrationTests
 
 #if !UNITY_SWITCH
         [UnityTest]
-        public IEnumerator LoadContentCatalogAsync_SetsUpLocalAndRemoteAndCacheLocations()
+        public IEnumerator LoadContentCatalogAsync_SetsUpLocalAndRemoteLocations()
         {
             yield return Init();
             string catalogPath = "fakeCatalogPath" + kCatalogExt;
             string catalogHashPath = "fakeCatalogPath.hash";
 
             var loc = m_Addressables.CreateCatalogLocationWithHashDependencies<ContentCatalogProvider>(catalogPath);
-            Assert.AreEqual(3, loc.Dependencies.Count);
+            Assert.AreEqual(2, loc.Dependencies.Count);
             var remoteLocation = loc.Dependencies[(int)ContentCatalogProvider.DependencyHashIndex.Remote];
             var cacheLocation = loc.Dependencies[(int)ContentCatalogProvider.DependencyHashIndex.Cache];
-            var localLocation = loc.Dependencies[(int)ContentCatalogProvider.DependencyHashIndex.Local];
 
             Assert.AreEqual(catalogHashPath, remoteLocation.ToString());
-            Assert.AreEqual(cacheLocation, localLocation);
             Assert.AreEqual(m_Addressables.ResolveInternalId(AddressablesImpl.kCacheDataFolder + catalogHashPath.GetHashCode() + catalogHashPath.Substring(catalogHashPath.LastIndexOf("."))),
                 cacheLocation.ToString());
         }
@@ -1051,7 +1011,7 @@ namespace AddressableAssetsIntegrationTests
 
             m_Addressables.CatalogRequestsTimeout = 13;
             var loc = m_Addressables.CreateCatalogLocationWithHashDependencies<ContentCatalogProvider>(catalogPath);
-            Assert.AreEqual(3, loc.Dependencies.Count);
+            Assert.AreEqual(2, loc.Dependencies.Count);
             var remoteLocation = loc.Dependencies[(int)ContentCatalogProvider.DependencyHashIndex.Remote];
             var cacheLocation = loc.Dependencies[(int)ContentCatalogProvider.DependencyHashIndex.Cache];
 
@@ -1268,8 +1228,6 @@ namespace AddressableAssetsIntegrationTests
 #endif
 
 #if UNITY_EDITOR
-
-#if ENABLE_JSON_CATALOG
         [UnityTest]
         public IEnumerator LoadingContentCatalog_CachesCatalogData_IfValidHashFoundAndRemotePathContainsQueryParameters()
         {
@@ -1300,7 +1258,6 @@ namespace AddressableAssetsIntegrationTests
             File.Delete(cachedDataPath);
             File.Delete(cachedHashPath);
         }
-#endif
 
         [UnityTest]
         public IEnumerator LoadingContentCatalog_CachesCatalogData_ForTwoCatalogsWithSameName()
@@ -1397,9 +1354,9 @@ namespace AddressableAssetsIntegrationTests
                 File.Copy(baseCatalogPath, fullRemotePath);
             }
 
-            string hashPath = WriteHashFileForCatalog(fullRemotePath, "123");
+            WriteHashFileForCatalog(fullRemotePath, "123");
 
-            string cachedDataPath = m_Addressables.ResolveInternalId(AddressablesImpl.kCacheDataFolder + hashPath.GetHashCode() + kCatalogExt);
+            string cachedDataPath = m_Addressables.ResolveInternalId(AddressablesImpl.kCacheDataFolder + Path.GetFileName(kCatalogRemotePath));
             string cachedHashPath = cachedDataPath.Replace(kCatalogExt, ".hash");
             if (File.Exists(cachedDataPath))
                 File.Delete(cachedDataPath);
@@ -1532,7 +1489,6 @@ namespace AddressableAssetsIntegrationTests
             File.Delete(cachedHashPath);
         }
 
-        #if ENABLE_JSON_CATALOG
         [UnityTest]
         public IEnumerator UpdateContentCatalog_UpdatesCachedData_IfCacheCorrupted()
         {
@@ -1555,7 +1511,7 @@ namespace AddressableAssetsIntegrationTests
                 baseCatalogPath = new Uri(m_Addressables.m_ResourceLocators[0].CatalogLocation.InternalId).AbsolutePath;
             File.Copy(baseCatalogPath, fullRemotePath);
 
-            File.WriteAllText(cachedHashPath, File.ReadAllText(remoteHashPath));
+            File.WriteAllText(remoteHashPath, File.ReadAllText(cachedHashPath));
             File.WriteAllText(cachedDataPath, "corrupted content");
 
             //load from fullRemotePath will first load cachedDataPath, then load fullRemotePath on error
@@ -1573,7 +1529,6 @@ namespace AddressableAssetsIntegrationTests
             File.Delete(cachedHashPath);
         }
 
-#endif
         [UnityTest]
         public IEnumerator LoadingContentCatalog_NoCacheDataCreated_IfRemoteHashDoesntExist()
         {
@@ -1640,18 +1595,18 @@ namespace AddressableAssetsIntegrationTests
 
         internal bool CatalogDataWasCleaned(ContentCatalogData data)
         {
-#if ENABLE_JSON_CATALOG
-            return string.IsNullOrEmpty(data.m_KeyDataString) &&
-                string.IsNullOrEmpty(data.m_BucketDataString) &&
-                string.IsNullOrEmpty(data.m_EntryDataString) &&
-                string.IsNullOrEmpty(data.m_ExtraDataString) &&
-                data.m_InternalIds == null &&
-                string.IsNullOrEmpty(data.m_LocatorId) &&
-                data.m_ProviderIds == null &&
-                data.m_ResourceProviderData == null &&
-                data.m_resourceTypes == null;
+#if ENABLE_BINARY_CATALOG
+            return string.IsNullOrEmpty(data.m_LocatorId);
 #else
-  return string.IsNullOrEmpty(data.m_LocatorId);
+            return string.IsNullOrEmpty(data.m_KeyDataString) &&
+                   string.IsNullOrEmpty(data.m_BucketDataString) &&
+                   string.IsNullOrEmpty(data.m_EntryDataString) &&
+                   string.IsNullOrEmpty(data.m_ExtraDataString) &&
+                   data.m_InternalIds == null &&
+                   string.IsNullOrEmpty(data.m_LocatorId) &&
+                   data.m_ProviderIds == null &&
+                   data.m_ResourceProviderData == null &&
+                   data.m_resourceTypes == null;
 #endif
         }
 
@@ -2199,7 +2154,7 @@ namespace AddressableAssetsIntegrationTests
         public IEnumerator LoadAsset_SuccessfulWhenLoadAssetMode_LoadAllAssets()
         {
             yield return Init();
-            if (string.IsNullOrEmpty(TypeName) || TypeName == "BuildScriptFastMode")
+            if (string.IsNullOrEmpty(TypeName) || TypeName == "BuildScriptFastMode" || TypeName == "BuildScriptVirtualMode")
             {
                 Assert.Ignore($"Skipping test {nameof(LoadAsset_SuccessfulWhenLoadAssetMode_LoadAllAssets)} for {TypeName}, AssetBundle based test.");
             }
@@ -2365,12 +2320,17 @@ namespace AddressableAssetsIntegrationTests
             AsyncOperationHandle op = m_Addressables.DownloadDependenciesAsync(label, true);
             yield return op;
             AssetBundleProvider.WaitForAllUnloadingBundlesToComplete();
+#if UNITY_2022_1_OR_NEWER
             Assert.AreEqual(bundleCountBefore, AssetBundleProvider.AssetBundleCount);
+#else
+            Assert.AreEqual(bundleCountBefore, AssetBundle.GetAllLoadedAssetBundles().Count());
+#endif
         }
 
         [Test]
         public void AssetBundleProvider_CanSet_UnloadingBundles()
         {
+#if UNITY_2022_1_OR_NEWER
             var unloadingBundles = AssetBundleProvider.UnloadingBundles;
 
             string key = "op1";
@@ -2379,6 +2339,9 @@ namespace AddressableAssetsIntegrationTests
             Assert.IsTrue(AssetBundleProvider.UnloadingBundles.ContainsKey(key));
 
             AssetBundleProvider.UnloadingBundles = unloadingBundles;
+#else
+            Assert.Ignore($"Skipping test {nameof(AssetBundleProvider_CanSet_UnloadingBundles)}. Requires 2022.1+");
+#endif
         }
 
         [UnityTest]
@@ -2573,6 +2536,211 @@ namespace AddressableAssetsIntegrationTests
             Assert.AreEqual((handle1PercentComplete + handle2PercentComplete + handle3PercentComplete + handle4PercentComplete) / 4, groupOp.PercentComplete);
         }
 
+        [UnityTest]
+        public IEnumerator ResourceManagerDiagnostics_SumDependencyNameHashCodes_ProperlyCalculatesForOneLayerOfDependencies()
+        {
+            yield return Init();
+            var rmd = new ResourceManagerDiagnostics(m_Addressables.ResourceManager);
+
+            GroupOperation groupOp = new GroupOperation();
+
+
+            float handle1PercentComplete = 0.22f;
+            float handle2PercentComplete = 0.78f;
+            float handle3PercentComplete = 1.0f;
+            float handle4PercentComplete = 0.35f;
+
+            List<AsyncOperationHandle> handles = new List<AsyncOperationHandle>()
+            {
+                new ManualPercentCompleteOperation(handle1PercentComplete).Handle,
+                new ManualPercentCompleteOperation(handle2PercentComplete).Handle,
+                new ManualPercentCompleteOperation(handle3PercentComplete).Handle,
+                new ManualPercentCompleteOperation(handle4PercentComplete).Handle
+            };
+
+            groupOp.Init(handles);
+
+            var handle = groupOp.Handle;
+            var dependencyNameHashSum = handle.DebugName.GetHashCode() + rmd.SumDependencyNameHashCodes(handle);
+            var manualDepNameHashSum = handle.DebugName.GetHashCode();
+            foreach (var h in handles)
+                manualDepNameHashSum += h.DebugName.GetHashCode();
+            Assert.AreEqual(manualDepNameHashSum, dependencyNameHashSum, "Calculation of hashcode was not completed as expected.");
+        }
+
+        [UnityTest]
+        public IEnumerator ResourceManagerDiagnostics_SumDependencyNameHashCodes_ProperlyCalculatesForMultipleLayersOfDependencies()
+        {
+            yield return Init();
+            var rmd = new ResourceManagerDiagnostics(m_Addressables.ResourceManager);
+
+            GroupOperation groupOp = new GroupOperation();
+            GroupOperation embeddedOp = new GroupOperation();
+
+
+            float handle1PercentComplete = 0.22f;
+            float handle2PercentComplete = 0.78f;
+            float handle3PercentComplete = 1.0f;
+            float handle4PercentComplete = 0.35f;
+
+            List<AsyncOperationHandle> embeddedHandles = new List<AsyncOperationHandle>()
+            {
+                new ManualPercentCompleteOperation(handle1PercentComplete).Handle,
+                new ManualPercentCompleteOperation(handle2PercentComplete).Handle,
+                new ManualPercentCompleteOperation(handle3PercentComplete).Handle,
+                new ManualPercentCompleteOperation(handle4PercentComplete).Handle
+            };
+
+            embeddedOp.Init(embeddedHandles);
+
+            List<AsyncOperationHandle> handles = new List<AsyncOperationHandle>()
+            {
+                embeddedOp.Handle,
+                new ManualPercentCompleteOperation(handle1PercentComplete).Handle,
+                new ManualPercentCompleteOperation(handle2PercentComplete).Handle,
+                new ManualPercentCompleteOperation(handle3PercentComplete).Handle,
+                new ManualPercentCompleteOperation(handle4PercentComplete).Handle
+            };
+
+            groupOp.Init(handles);
+
+            var dependencyNameHashSum = groupOp.Handle.DebugName.GetHashCode() + rmd.SumDependencyNameHashCodes(groupOp.Handle);
+            int manualDepNameHashSum;
+
+            unchecked
+            {
+                manualDepNameHashSum = groupOp.Handle.DebugName.GetHashCode();
+                foreach (var h in handles)
+                    manualDepNameHashSum += h.DebugName.GetHashCode();
+                foreach (var h in embeddedHandles)
+                    manualDepNameHashSum += h.DebugName.GetHashCode();
+            }
+
+            Assert.AreEqual(dependencyNameHashSum, manualDepNameHashSum, "Calculation of hashcode was not completed as expected.");
+        }
+
+        [UnityTest]
+        public IEnumerator ResourceManagerDiagnostics_CalculateHashCode_NonChangingNameCase()
+        {
+            yield return Init();
+            var rmd = new ResourceManagerDiagnostics(m_Addressables.ResourceManager);
+
+            GroupOperation groupOp = new GroupOperation();
+
+
+            float handle1PercentComplete = 0.22f;
+            float handle2PercentComplete = 0.78f;
+            float handle3PercentComplete = 1.0f;
+            float handle4PercentComplete = 0.35f;
+
+            List<AsyncOperationHandle> handles = new List<AsyncOperationHandle>()
+            {
+                new ManualPercentCompleteOperation(handle1PercentComplete).Handle,
+                new ManualPercentCompleteOperation(handle2PercentComplete).Handle,
+                new ManualPercentCompleteOperation(handle3PercentComplete).Handle,
+                new ManualPercentCompleteOperation(handle4PercentComplete).Handle
+            };
+
+            groupOp.Init(handles);
+
+            var handle = groupOp.Handle;
+            var dependencyNameHashSum = rmd.CalculateHashCode(handle);
+            var manualDepNameHashSum = handle.DebugName.GetHashCode();
+            foreach (var h in handles)
+                manualDepNameHashSum += h.DebugName.GetHashCode();
+            Assert.AreEqual(manualDepNameHashSum, dependencyNameHashSum, "Calculation of hashcode was not completed as expected.");
+        }
+
+        [UnityTest]
+        public IEnumerator ResourceManagerDiagnostics_CalculateCompletedOperationHashcode_DoesNotErrorOnNullResult()
+        {
+            yield return Init();
+            var rmd = new ResourceManagerDiagnostics(m_Addressables.ResourceManager);
+            var completedOp = m_Addressables.ResourceManager.CreateCompletedOperation<string>(null, "x");
+            int hashcode = rmd.CalculateCompletedOperationHashcode(completedOp);
+            Assert.NotNull(hashcode, "CalculateCompletedOperationHashcode should not error when a completedOperation with a null result is passed in.");
+        }
+
+        [UnityTest]
+        public IEnumerator ResourceManagerDiagnostics_CalculateCompletedOperationHashcode_DoesNotErrorOnEmptyResultList()
+        {
+            yield return Init();
+            var rmd = new ResourceManagerDiagnostics(m_Addressables.ResourceManager);
+            var completedOp = m_Addressables.ResourceManager.CreateCompletedOperation<List<string>>(new List<string>(), null);
+            int hashcode = rmd.CalculateCompletedOperationHashcode(completedOp);
+            Assert.NotNull(hashcode, "CalculateCompletedOperationHashcode should not error when a completedOperation with an empty list is passed in.");
+        }
+
+        [UnityTest]
+        public IEnumerator ResourceManagerDiagnostics_GenerateCompletedOperationDisplayName_DoesNotErrorOnEmptyResultList()
+        {
+            yield return Init();
+            var rmd = new ResourceManagerDiagnostics(m_Addressables.ResourceManager);
+            var completedOp = m_Addressables.ResourceManager.CreateCompletedOperation<List<string>>(new List<string>(), null);
+            string displayName = rmd.GenerateCompletedOperationDisplayName(completedOp);
+            Assert.NotNull(displayName, "GenerateCompletedOperationDisplayName should not run into issues when an empty string is passed in.");
+        }
+
+        [UnityTest]
+        public IEnumerator ResourceManagerDiagnostics_GenerateCompletedOperationDisplayName_DoesNotErrorOnTrivialList()
+        {
+            yield return Init();
+            var rmd = new ResourceManagerDiagnostics(m_Addressables.ResourceManager);
+            var list = new List<string>();
+            list.Add("x");
+            var completedOp = m_Addressables.ResourceManager.CreateCompletedOperation<List<string>>(list, null);
+            string displayName = rmd.GenerateCompletedOperationDisplayName(completedOp);
+            Assert.NotNull(displayName, "GenerateCompletedOperationDisplayName should not run into issues when a simple string is passed in.");
+        }
+
+        [UnityTest]
+        public IEnumerator ResourceManagerDiagnostics_GenerateCompletedOperationDisplayName_DoesNotErrorOnListWithEmptyElement()
+        {
+            yield return Init();
+            var rmd = new ResourceManagerDiagnostics(m_Addressables.ResourceManager);
+            var list = new List<string>();
+            list.Add("");
+            var completedOp = m_Addressables.ResourceManager.CreateCompletedOperation<List<string>>(list, null);
+            string displayName = rmd.GenerateCompletedOperationDisplayName(completedOp);
+            Assert.NotNull(displayName, "GenerateCompletedOperationDisplayName should not run into issues when an empty string is passed in.");
+        }
+
+        [UnityTest]
+        public IEnumerator ResourceManagerDiagnostics_GenerateCompletedOperationDisplayName_DoesNotErrorOnListWithManyEmptyElements()
+        {
+            yield return Init();
+            var rmd = new ResourceManagerDiagnostics(m_Addressables.ResourceManager);
+            var list = new List<string>();
+            for (int i = 0; i < 20; i++)
+                list.Add("");
+            var completedOp = m_Addressables.ResourceManager.CreateCompletedOperation<List<string>>(list, null);
+            string displayName = rmd.GenerateCompletedOperationDisplayName(completedOp);
+            Assert.NotNull(displayName, "GenerateCompletedOperationDisplayName should not run into issues when many empty strings are passed in.");
+        }
+
+        [UnityTest]
+        public IEnumerator ResourceManagerDiagnostics_CalculateCompletedOperationDisplayName_DoesNotErrorOnNullResult()
+        {
+            yield return Init();
+            var rmd = new ResourceManagerDiagnostics(m_Addressables.ResourceManager);
+            var completedOp = m_Addressables.ResourceManager.CreateCompletedOperation<string>(null, "x");
+            string displayName = rmd.GenerateCompletedOperationDisplayName(completedOp);
+            Assert.NotNull(displayName, "GenerateCompletedOperationDisplayName should not error when a completedOperation with a null result is passed in.");
+        }
+
+        [UnityTest]
+        public IEnumerator ResourceManagerDiagnostics_GenerateCompletedOperationDisplayName_DoesNotErrorOnReallyLongList()
+        {
+            yield return Init();
+            var rmd = new ResourceManagerDiagnostics(m_Addressables.ResourceManager);
+            var list = new List<string>();
+            for (int i = 0; i < 20; i++)
+                list.Add("this is a really long string used for illustrative purposes");
+            var completedOp = m_Addressables.ResourceManager.CreateCompletedOperation<List<string>>(list, null);
+            string displayName = rmd.GenerateCompletedOperationDisplayName(completedOp);
+            Assert.NotNull(displayName, "GenerateCompletedOperationDisplayName should not run into issues when a bunch of long strings are passed in.");
+        }
+
         private class DebugNameTestOperation : AsyncOperationBase<string>
         {
             string m_DebugName;
@@ -2605,6 +2773,91 @@ namespace AddressableAssetsIntegrationTests
             {
                 get { return m_DebugName; }
             }
+        }
+
+        [UnityTest]
+        public IEnumerator ResourceManagerDiagnostics_CalculateHashCode_NameChangingCase()
+        {
+            yield return Init();
+            var rmd = new ResourceManagerDiagnostics(m_Addressables.ResourceManager);
+
+            AsyncOperationHandle changingHandle = new ManualPercentCompleteOperation(0.22f).Handle;
+
+            Assert.AreEqual(changingHandle.GetHashCode(), rmd.CalculateHashCode(changingHandle),
+                "Default hashcode should have been used since ManualPercentCompleteOperation includes its status in its DebugName");
+        }
+
+        [UnityTest]
+        public IEnumerator ResourceManagerDiagnostics_CalculateHashCode_SameNameGivesSameHashcode()
+        {
+            yield return Init();
+            var rmd = new ResourceManagerDiagnostics(m_Addressables.ResourceManager);
+
+            DebugNameTestOperation op1 = new DebugNameTestOperation("Same name");
+            AsyncOperationHandle handle1 = new AsyncOperationHandle(op1);
+
+            DebugNameTestOperation op2 = new DebugNameTestOperation("Same name");
+            AsyncOperationHandle handle2 = new AsyncOperationHandle(op2);
+
+            Assert.AreEqual(rmd.CalculateHashCode(handle1), rmd.CalculateHashCode(handle2), "Two separate handles with the same DebugName should have the same hashcode. ");
+        }
+
+        [UnityTest]
+        public IEnumerator ResourceManagerDiagnostics_CalculateHashCode_SimilarNameGivesDifHashcode()
+        {
+            yield return Init();
+            var rmd = new ResourceManagerDiagnostics(m_Addressables.ResourceManager);
+
+            DebugNameTestOperation op1 = new DebugNameTestOperation("Same name");
+            AsyncOperationHandle handle1 = new AsyncOperationHandle(op1);
+
+            DebugNameTestOperation op2 = new DebugNameTestOperation("SaMe name");
+            AsyncOperationHandle handle2 = new AsyncOperationHandle(op2);
+
+            Assert.AreNotEqual(rmd.CalculateHashCode(handle1), rmd.CalculateHashCode(handle2), "Two similar, but different names should have different hashcodes. ");
+        }
+
+        [UnityTest]
+        public IEnumerator ResourceManagerDiagnostics_CalculateHashCode_SameNameDifDepsGivesDifHashcode()
+        {
+            yield return Init();
+            var rmd = new ResourceManagerDiagnostics(m_Addressables.ResourceManager);
+
+            var dependency1 = new DebugNameTestOperation("Dependency 1");
+            var dependency2 = new DebugNameTestOperation("Dependency 2");
+
+            var depList1 = new List<AsyncOperationHandle> {new AsyncOperationHandle(dependency1)};
+            var depList2 = new List<AsyncOperationHandle> {new AsyncOperationHandle(dependency2)};
+
+            DebugNameTestOperation op1 = new DebugNameTestOperation("Same name", depList1);
+            AsyncOperationHandle handle1 = new AsyncOperationHandle(op1);
+
+            DebugNameTestOperation op2 = new DebugNameTestOperation("Same name", depList2);
+            AsyncOperationHandle handle2 = new AsyncOperationHandle(op2);
+
+            Assert.AreNotEqual(rmd.CalculateHashCode(handle1), rmd.CalculateHashCode(handle2),
+                "Two separate handles with the same DebugName, but different dependency names should not have the same hashcode.");
+        }
+
+        [UnityTest]
+        public IEnumerator ResourceManagerDiagnostics_CalculateHashCode_SameNameSameDepNamesGivesSameHashcode()
+        {
+            yield return Init();
+            var rmd = new ResourceManagerDiagnostics(m_Addressables.ResourceManager);
+
+            var dependency1 = new DebugNameTestOperation("Dependency 1");
+            var dependency2 = new DebugNameTestOperation("Dependency 2");
+
+            var depList1 = new List<AsyncOperationHandle> {new AsyncOperationHandle(dependency1), new AsyncOperationHandle(dependency2)};
+            var depList2 = new List<AsyncOperationHandle> {new AsyncOperationHandle(dependency2), new AsyncOperationHandle(dependency1)};
+
+            DebugNameTestOperation op1 = new DebugNameTestOperation("Same name", depList1);
+            AsyncOperationHandle handle1 = new AsyncOperationHandle(op1);
+
+            DebugNameTestOperation op2 = new DebugNameTestOperation("Same name", depList2);
+            AsyncOperationHandle handle2 = new AsyncOperationHandle(op2);
+
+            Assert.AreEqual(rmd.CalculateHashCode(handle1), rmd.CalculateHashCode(handle2), "Two handles with the same DebugName and same dependency names should have the same hashcode.");
         }
 
         [UnityTest]
@@ -2646,6 +2899,7 @@ namespace AddressableAssetsIntegrationTests
 
             handle.Release();
         }
+#if !ENABLE_BINARY_CATALOG
         static ResourceLocationMap GetRLM(AddressablesImpl addr)
         {
             foreach (var rl in addr.m_ResourceLocators)
@@ -2656,7 +2910,7 @@ namespace AddressableAssetsIntegrationTests
 
             return null;
         }
-
+#endif
         private void SetupBundleForCacheDependencyClearTests(string bundleName, string depName, string hash, string key, out ResourceLocationBase location)
         {
             CreateFakeCachedBundle(bundleName, hash);
@@ -2724,7 +2978,7 @@ namespace AddressableAssetsIntegrationTests
                 }
             }
         }
-#if ENABLE_JSON_CATALOG
+#if !ENABLE_BINARY_CATALOG
         private void SetupBundleForProviderTests(string bundleName, string depName, string key, out ResourceLocationBase location, out TestCatalogProviderCustomAssetBundleResource testProvider)
         {
             testProvider = new TestCatalogProviderCustomAssetBundleResource();
@@ -2741,9 +2995,9 @@ namespace AddressableAssetsIntegrationTests
             GetRLM(m_Addressables).Add(key, new List<IResourceLocation>() {location});
         }
 #endif
-#if ENABLE_JSON_CATALOG
+#if !ENABLE_BINARY_CATALOG
+#if !UNITY_PS5
         [UnityTest]
-        [Platform(Exclude = "PS5")]
         public IEnumerator ClearDependencyCache_ClearsAllCachedFilesForKey()
         {
             yield return Init();
@@ -3016,6 +3270,7 @@ namespace AddressableAssetsIntegrationTests
             yield return null;
 #endif
         }
+#endif
 
         [UnityTest]
         public IEnumerator AssetBundleRequestOptions_ComputesCorrectSize_WhenLocationDoesNotMatchBundleName_WithoutHash()

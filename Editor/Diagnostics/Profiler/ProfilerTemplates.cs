@@ -1,3 +1,5 @@
+#if ENABLE_ADDRESSABLE_PROFILER && UNITY_2022_2_OR_NEWER
+
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -40,3 +42,5 @@ namespace UnityEditor.AddressableAssets.Diagnostics
         }
     }
 }
+
+#endif

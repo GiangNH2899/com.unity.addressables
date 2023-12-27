@@ -24,10 +24,10 @@ public abstract class AddressablesTestFixture : IPrebuildSetup, IPostBuildCleanu
     internal string m_RuntimeSettingsPath;
     internal readonly string m_UniqueTestName;
     protected const string kCatalogExt =
-#if ENABLE_JSON_CATALOG
-            ".json";
+#if ENABLE_BINARY_CATALOG
+            ".bin";
 #else
-        ".bin";
+            ".json";
 #endif
     protected AddressablesTestFixture()
     {
@@ -37,6 +37,7 @@ public abstract class AddressablesTestFixture : IPrebuildSetup, IPostBuildCleanu
     protected enum TestBuildScriptMode
     {
         Fast,
+        Virtual,
         PackedPlaymode,
         Packed
     }
@@ -159,6 +160,7 @@ public abstract class AddressablesTestFixture : IPrebuildSetup, IPostBuildCleanu
         switch (mode)
         {
             case TestBuildScriptMode.Fast: return typeof(BuildScriptFastMode);
+            case TestBuildScriptMode.Virtual: return typeof(BuildScriptVirtualMode);
             case TestBuildScriptMode.Packed: return typeof(BuildScriptPackedMode);
             case TestBuildScriptMode.PackedPlaymode: return typeof(BuildScriptPackedPlayMode);
         }
@@ -260,11 +262,10 @@ public abstract class AddressablesTestFixture : IPrebuildSetup, IPostBuildCleanu
 
 #endif
 
-    internal static IEnumerator UnloadSceneFromHandler(AsyncOperationHandle<SceneInstance> op, AddressablesImpl addressables, bool sceneExpectedToBeLoaded = true)
+    internal static IEnumerator UnloadSceneFromHandler(AsyncOperationHandle<SceneInstance> op, AddressablesImpl addressables)
     {
         string sceneName = op.Result.Scene.name;
-        if (sceneExpectedToBeLoaded)
-            Assert.IsNotNull(sceneName);
+        Assert.IsNotNull(sceneName);
         var unloadOp = addressables.UnloadSceneAsync(op, UnloadSceneOptions.None, false);
         yield return unloadOp;
         Assert.AreEqual(AsyncOperationStatus.Succeeded, unloadOp.Status);

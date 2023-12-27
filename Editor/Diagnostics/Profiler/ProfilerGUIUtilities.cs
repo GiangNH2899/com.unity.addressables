@@ -1,3 +1,5 @@
+#if  UNITY_2022_2_OR_NEWER
+
 using System;
 using System.Collections.Generic;
 using UnityEditor.AddressableAssets.Build.Layout;
@@ -293,3 +295,5 @@ namespace UnityEditor.AddressableAssets.Diagnostics
         }
     }
 }
+
+#endif

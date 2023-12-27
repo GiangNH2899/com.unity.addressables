@@ -157,6 +157,14 @@ namespace AssetReferenceDrawerTests
         }
     }
 
+    class AssetReferenceDrawerTests_VirtualMode : AssetReferenceDrawerTests
+    {
+        protected override TestBuildScriptMode BuildScriptMode
+        {
+            get { return TestBuildScriptMode.Virtual; }
+        }
+    }
+
     class AssetReferenceDrawerTests_PackedPlaymodeMode : AssetReferenceDrawerTests
     {
         protected override TestBuildScriptMode BuildScriptMode

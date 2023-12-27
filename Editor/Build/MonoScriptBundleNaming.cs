@@ -1,10 +1,15 @@
-namespace UnityEditor.AddressableAssets.Build
+﻿namespace UnityEditor.AddressableAssets.Build
 {
     /// <summary>
     /// Naming conventions for the monoscript bundle name prefix.
     /// </summary>
     public enum MonoScriptBundleNaming
     {
+        /// <summary>
+        /// No special prefix will be added to the monscript bundle name.
+        /// </summary>
+        Disabled,
+
         /// <summary>
         /// Set the monoscript bundle name prefix to the hash of the project name.
         /// </summary>

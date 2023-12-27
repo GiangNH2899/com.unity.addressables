@@ -1,7 +1,11 @@
-﻿using System;
+﻿#if UNITY_2022_2_OR_NEWER
+using System;
+using System.Collections.Generic;
+using System.IO;
 using NUnit.Framework;
 using UnityEditor.AddressableAssets.Build.Layout;
 using UnityEditor.AddressableAssets.Diagnostics;
+using UnityEngine;
 
 namespace UnityEditor.AddressableAssets.Tests.Diagnostics
 {
@@ -17,3 +21,5 @@ namespace UnityEditor.AddressableAssets.Tests.Diagnostics
         }
     }
 }
+
+#endif

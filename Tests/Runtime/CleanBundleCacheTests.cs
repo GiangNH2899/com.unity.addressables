@@ -44,8 +44,12 @@ namespace AddressableAssetsIntegrationTests
             RunBuilder(settings, m_UniqueTestName + kOldBuildId);
 
             settings = AddressableAssetSettings.Create(Path.Combine(tempAssetFolder, "Settings" + kNewBuildId), "AddressableAssetSettings.Tests", false, true);
+
+            bool temp = ProjectConfigData.PostProfilerEvents;
+            ProjectConfigData.PostProfilerEvents = true;
             CreateGroup(settings, tempAssetFolder, kNewBuildId, GetRefAsset);
             RunBuilder(settings, m_UniqueTestName + kNewBuildId);
+            ProjectConfigData.PostProfilerEvents = temp;
         }
 
         AddressableAssetGroup CreateGroup(AddressableAssetSettings settings, string tempAssetFolder, string buildId, Func<int, string> objNaming)
@@ -183,8 +187,8 @@ namespace AddressableAssetsIntegrationTests
 
 #endif
 
+#if !UNITY_PS5
         [UnityTest]
-        [Platform(Exclude = "PS5")]
         public IEnumerator WhenValidCatalogId_RemovesNonReferencedBundlesFromCache([Values(true, false)] bool forceSingleThreading)
         {
 #if ENABLE_CACHING
@@ -214,9 +218,10 @@ namespace AddressableAssetsIntegrationTests
             yield return null;
 #endif
         }
+#endif
 
+#if !UNITY_PS5
         [UnityTest]
-        [Platform(Exclude = "PS5")]
         public IEnumerator WhenCatalogIdListNull_UsesLoadedCatalogs_AndRemovesNonReferencedBundlesFromCache()
         {
 #if ENABLE_CACHING
@@ -245,6 +250,7 @@ namespace AddressableAssetsIntegrationTests
             yield return null;
 #endif
         }
+#endif
 
         [UnityTest]
         public IEnumerator WhenCatalogIdListNull_AndUsingFastMode_ReturnsException()

@@ -432,7 +432,7 @@ namespace UnityEditor.AddressableAssets.Tests
             return null;
         }
 
-#if ENABLE_JSON_CATALOG
+#if !ENABLE_BINARY_CATALOG
 
         [Test]
         public void WhenContentUpdated_NewCatalogRetains_OldCatalogBundleLoadData()

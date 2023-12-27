@@ -186,6 +186,14 @@ namespace UnityEngine.AddressableAssets.DynamicResourceLocators
         }
     }
 
+    class DynamicLocatorTests_VirtualMode : DynamicLocatorTests
+    {
+        protected override TestBuildScriptMode BuildScriptMode
+        {
+            get { return TestBuildScriptMode.Virtual; }
+        }
+    }
+
     class DynamicLocatorTests_PackedPlaymodeMode : DynamicLocatorTests
     {
         protected override TestBuildScriptMode BuildScriptMode

@@ -27,6 +27,10 @@ namespace UnityEditor.AddressableAssets.Settings
         [SerializeField]
         string m_GroupName;
 
+        [FormerlySerializedAs("m_data")]
+        [SerializeField]
+        KeyDataStore m_Data;
+
         [FormerlySerializedAs("m_guid")]
         [SerializeField]
         string m_GUID;
@@ -49,6 +53,7 @@ namespace UnityEditor.AddressableAssets.Settings
 
         Dictionary<string, AddressableAssetEntry> m_EntryMap = new Dictionary<string, AddressableAssetEntry>();
         List<AddressableAssetEntry> m_FolderEntryCache = null;
+        List<AddressableAssetEntry> m_AssetCollectionEntryCache = null;
 
         /// <summary>
         /// If true, this Group is likely marked 'Cannot Change Post Release', but has a modified asset since the previous build.
@@ -58,11 +63,16 @@ namespace UnityEditor.AddressableAssets.Settings
         internal void RefreshEntriesCache()
         {
             m_FolderEntryCache = new List<AddressableAssetEntry>();
+            m_AssetCollectionEntryCache = new List<AddressableAssetEntry>();
             FlaggedDuringContentUpdateRestriction = false;
             foreach (AddressableAssetEntry e in entries)
             {
                 if (!string.IsNullOrEmpty(e.AssetPath) && e.MainAssetType == typeof(DefaultAsset) && AssetDatabase.IsValidFolder(e.AssetPath))
                     m_FolderEntryCache.Add(e);
+#pragma warning disable 0618
+                else if (!string.IsNullOrEmpty(e.AssetPath) && e.AssetPath.EndsWith(".asset", StringComparison.OrdinalIgnoreCase) && e.MainAssetType == typeof(AddressableAssetEntryCollection))
+                    m_AssetCollectionEntryCache.Add(e);
+#pragma warning restore 0618
                 if (e.FlaggedDuringContentUpdateRestriction)
                     FlaggedDuringContentUpdateRestriction = true;
             }
@@ -305,7 +315,7 @@ namespace UnityEditor.AddressableAssets.Settings
         }
 
         /// <summary>
-        /// Is this group read only.  This is normally false.
+        /// Is this group read only.  This is normally false.  Built in resources (resource folders and the scene list) are put into a special read only group.
         /// </summary>
         public virtual bool ReadOnly
         {
@@ -346,6 +356,16 @@ namespace UnityEditor.AddressableAssets.Settings
             }
         }
 
+        internal ICollection<AddressableAssetEntry> AssetCollectionEntries
+        {
+            get
+            {
+                if (m_AssetCollectionEntryCache == null)
+                    RefreshEntriesCache();
+                return m_AssetCollectionEntryCache;
+            }
+        }
+
         /// <summary>
         /// Is the default group.
         /// </summary>
@@ -373,7 +393,7 @@ namespace UnityEditor.AddressableAssets.Settings
             return x.guid.CompareTo(y.guid);
         }
 
-        internal Hash128 m_CurrentHash;
+        Hash128 m_CurrentHash;
         internal Hash128 currentHash
         {
             get
@@ -419,6 +439,7 @@ namespace UnityEditor.AddressableAssets.Settings
         {
             m_EntryMap.Clear();
             m_FolderEntryCache = null;
+            m_AssetCollectionEntryCache = null;
             foreach (var e in m_SerializeEntries)
             {
                 try
@@ -462,10 +483,23 @@ namespace UnityEditor.AddressableAssets.Settings
                 }
             }
 
-            if (m_Settings != null)
+            var editorList = GetAssetEntry(AddressableAssetEntry.EditorSceneListName);
+            if (editorList != null)
+            {
+                if (m_GroupName == null)
+                    m_GroupName = AddressableAssetSettings.PlayerDataGroupName;
+                if (m_Data != null)
+                {
+                    if (!HasSchema<PlayerDataGroupSchema>())
+                        AddSchema<PlayerDataGroupSchema>();
+                    m_Data = null;
+                }
+            }
+            else if (m_Settings != null)
             {
                 if (m_GroupName == null)
                     m_GroupName = Settings.FindUniqueGroupName("Packed Content Group");
+                m_Data = null;
             }
         }
 
@@ -481,11 +515,11 @@ namespace UnityEditor.AddressableAssets.Settings
                 if (lookedUpEntry.parentGroup != this)
                 {
                     Debug.LogWarning(e.address
-                        + " is already a member of group "
-                        + lookedUpEntry.parentGroup
-                        + " but group "
-                        + m_GroupName
-                        + " contained a reference to it.  Removing referece.");
+                                     + " is already a member of group "
+                                     + lookedUpEntry.parentGroup
+                                     + " but group "
+                                     + m_GroupName
+                                     + " contained a reference to it.  Removing referece.");
                     removeEntries.Add(e);
                 }
             }
@@ -502,6 +536,7 @@ namespace UnityEditor.AddressableAssets.Settings
                 m_GroupName = settings.FindUniqueGroupName("Packed Content Group");
             m_ReadOnly = readOnly;
             m_GUID = guid;
+            m_Data = null;
         }
 
         /// <summary>
@@ -535,12 +570,15 @@ namespace UnityEditor.AddressableAssets.Settings
                     continue;
                 if (FolderEntries.Contains(entry))
                     continue;
+                if (entry.guid == AddressableAssetEntry.EditorSceneListName || entry.guid == AddressableAssetEntry.ResourcesName)
+                    continue;
 
                 processed.Add(path);
                 var reference = new ImplicitAssetEntry()
                 {
                     address = entry.address,
                     AssetPath = entry.AssetPath,
+                    IsInResources = entry.IsInResources,
                     labels = new HashSet<string>(entry.labels)
                 };
                 results.Add(reference);
@@ -559,6 +597,8 @@ namespace UnityEditor.AddressableAssets.Settings
                 if (string.IsNullOrEmpty(path))
                     return;
                 if (processed.Contains(path))
+                    continue;
+                if (folderEntry.guid == AddressableAssetEntry.EditorSceneListName || folderEntry.guid == AddressableAssetEntry.ResourcesName)
                     continue;
 
                 processed.Add(folderEntry.AssetPath);
@@ -586,12 +626,55 @@ namespace UnityEditor.AddressableAssets.Settings
                     {
                         address = relativeAddress,
                         AssetPath = assetPath,
+                        IsInResources = folderEntry.IsInResources,
                         labels = new HashSet<string>(folderEntry.labels)
                     };
                     results.Add(reference);
                 }
             }
         }
+
+#pragma warning disable 0618
+        internal void GatherAllAssetCollectionAssetReferenceEntryData(List<IReferenceEntryData> results, HashSet<string> processed)
+        {
+            if (processed == null)
+                processed = new HashSet<string>();
+
+            if (AssetCollectionEntries.Count != 0)
+            {
+                foreach (var e in m_AssetCollectionEntryCache)
+                {
+                    var entries = new List<AddressableAssetEntry>();
+                    e.GatherAssetEntryCollectionEntries(entries, null);
+
+                    foreach (AddressableAssetEntry entry in entries)
+                    {
+                        // do entries
+                        string assetPath = entry.AssetPath;
+                        if (string.IsNullOrEmpty(assetPath))
+                            return;
+                        if (processed.Contains(assetPath))
+                            continue;
+                        processed.Add(assetPath);
+
+                        if (AssetDatabase.IsValidFolder(assetPath))
+                            continue;
+                        if (!AddressableAssetUtility.IsPathValidForEntry(assetPath))
+                            continue;
+
+                        var reference = new ImplicitAssetEntry()
+                        {
+                            address = entry.address,
+                            AssetPath = entry.AssetPath,
+                            IsInResources = entry.IsInResources,
+                            labels = new HashSet<string>(entry.labels)
+                        };
+                        results.Add(reference);
+                    }
+                }
+            }
+        }
+#pragma warning restore 0618
 
         internal void AddAssetEntry(AddressableAssetEntry e, bool postEvent = true)
         {
@@ -600,6 +683,10 @@ namespace UnityEditor.AddressableAssets.Settings
             m_EntryMap[e.guid] = e;
             if (m_FolderEntryCache != null && !string.IsNullOrEmpty(e.AssetPath) && e.MainAssetType == typeof(DefaultAsset) && AssetDatabase.IsValidFolder(e.AssetPath))
                 m_FolderEntryCache.Add(e);
+#pragma warning disable 0618
+            else if (m_AssetCollectionEntryCache != null && !string.IsNullOrEmpty(e.AssetPath) && e.AssetPath.EndsWith(".asset", StringComparison.OrdinalIgnoreCase) && e.MainAssetType == typeof(AddressableAssetEntryCollection))
+                m_AssetCollectionEntryCache.Add(e);
+#pragma warning restore 0618
             if (HasSchema<ContentUpdateGroupSchema>() && !GetSchema<ContentUpdateGroupSchema>().StaticContent)
                 e.FlaggedDuringContentUpdateRestriction = false;
             m_SerializeEntries = null;
@@ -626,18 +713,36 @@ namespace UnityEditor.AddressableAssets.Settings
         {
             if (m_EntryMap.TryGetValue(guid, out var entry))
                 return entry;
+            return includeImplicit ? GetImplicitAssetEntry(guid, null) : null;
+        }
 
-            if (includeImplicit && FolderEntries.Count > 0)
+        internal AddressableAssetEntry GetImplicitAssetEntry(string assetGuid, string assetPath)
+        {
+            if (AssetCollectionEntries.Count != 0)
             {
-                string assetPath = AssetDatabase.GUIDToAssetPath(guid);
-
-                foreach (var e in m_FolderEntryCache)
+                AddressableAssetEntry entry;
+                foreach (var e in m_AssetCollectionEntryCache)
                 {
-                    entry = e.GetFolderSubEntry(guid, assetPath);
+                    entry = e.GetAssetCollectionSubEntry(assetGuid);
                     if (entry != null)
                         return entry;
                 }
             }
+
+            if (FolderEntries.Count != 0)
+            {
+                if (assetPath == null)
+                    assetPath = AssetDatabase.GUIDToAssetPath(assetGuid);
+
+                AddressableAssetEntry entry;
+                foreach (var e in m_FolderEntryCache)
+                {
+                    entry = e.GetFolderSubEntry(assetGuid, assetPath);
+                    if (entry != null)
+                        return entry;
+                }
+            }
+
             return null;
         }
 
@@ -668,6 +773,7 @@ namespace UnityEditor.AddressableAssets.Settings
         {
             m_EntryMap.Remove(entry.guid);
             m_FolderEntryCache?.Remove(entry);
+            m_AssetCollectionEntryCache?.Remove(entry);
             entry.parentGroup = null;
             m_SerializeEntries = null;
             SetDirty(AddressableAssetSettings.ModificationEvent.EntryRemoved, entry, postEvent, true);
@@ -679,6 +785,7 @@ namespace UnityEditor.AddressableAssets.Settings
             {
                 m_EntryMap.Remove(entry.guid);
                 m_FolderEntryCache?.Remove(entry);
+                m_AssetCollectionEntryCache?.Remove(entry);
                 entry.parentGroup = null;
             }
 

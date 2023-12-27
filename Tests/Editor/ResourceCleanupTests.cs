@@ -1,6 +1,7 @@
 using System;
 using NUnit.Framework;
 using UnityEngine;
+using UnityEngine.ResourceManagement.Diagnostics;
 using UnityEngine.ResourceManagement.Util;
 
 namespace UnityEditor.AddressableAssets.Tests
@@ -19,6 +20,19 @@ namespace UnityEditor.AddressableAssets.Tests
             }
 
             return count;
+        }
+
+        [Test]
+        public void CleanupEventCollector()
+        {
+            var currentECCount = CountResourcesByName("EventCollector");
+            EditorApplication.isPlaying = true;
+            Assert.NotNull(DiagnosticEventCollectorSingleton.Instance);
+            Assert.True(DiagnosticEventCollectorSingleton.Exists);
+            EditorApplication.isPlaying = false;
+
+            Assert.False(DiagnosticEventCollectorSingleton.Exists);
+            Assert.AreEqual(currentECCount, CountResourcesByName("EventCollector"));
         }
 
         [Test]

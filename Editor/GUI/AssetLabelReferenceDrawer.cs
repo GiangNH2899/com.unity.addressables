@@ -1,5 +1,4 @@
 using System;
-using System.Linq;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 
@@ -21,7 +20,7 @@ namespace UnityEditor.AddressableAssets.GUI
             }
             else
             {
-                var labelList = AddressableAssetSettingsDefaultObject.Settings.labelTable.ToArray();
+                var labelList = AddressableAssetSettingsDefaultObject.Settings.labelTable.labelNames.ToArray();
                 var currIndex = Array.IndexOf(labelList, currentLabel.stringValue);
                 var newIndex = EditorGUI.Popup(smallPos, currIndex, labelList);
                 if (newIndex != currIndex)

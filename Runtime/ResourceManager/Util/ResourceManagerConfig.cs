@@ -400,7 +400,7 @@ namespace UnityEngine.ResourceManagement.Util
         }
 #pragma warning restore 0649
 
-#if !ENABLE_JSON_CATALOG
+#if ENABLE_BINARY_CATALOG
         internal class Serializer : BinaryStorageBuffer.ISerializationAdapter<ObjectInitializationData>
         {
             struct Data

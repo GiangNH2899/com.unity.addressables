@@ -29,16 +29,7 @@ namespace UnityEngine.AddressableAssets.ResourceProviders.Tests
 
             public string LocatorId { get; set; }
 
-            public IEnumerable<IResourceLocation> AllLocations
-            {
-                get
-                {
-                    List<IResourceLocation> value = new List<IResourceLocation>();
-                    foreach (var locs in m_Locations.Values)
-                        value.AddRange(locs);
-                    return value;
-                }
-            }
+            public IEnumerable<IResourceLocation> AllLocations => throw new NotImplementedException();
 
             public TestLocator(string id, params ResourceLocationBase[] locs)
             {
@@ -497,6 +488,14 @@ namespace UnityEngine.AddressableAssets.ResourceProviders.Tests
         protected override TestBuildScriptMode BuildScriptMode
         {
             get { return TestBuildScriptMode.Fast; }
+        }
+    }
+
+    class DynamicContentUpdateTests_VirtualMode : DynamicContentUpdateTests
+    {
+        protected override TestBuildScriptMode BuildScriptMode
+        {
+            get { return TestBuildScriptMode.Virtual; }
         }
     }
 

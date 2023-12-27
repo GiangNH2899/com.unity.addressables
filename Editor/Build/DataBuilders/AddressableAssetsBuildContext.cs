@@ -25,6 +25,12 @@ namespace UnityEditor.AddressableAssets.Build.DataBuilders
         /// <summary>
         /// The settings object to use.
         /// </summary>
+        [Obsolete("Use Settings property instead.")]
+        public AddressableAssetSettings settings;
+
+        /// <summary>
+        /// The settings object to use.
+        /// </summary>
         public AddressableAssetSettings Settings
         {
             get

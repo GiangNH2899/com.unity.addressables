@@ -18,7 +18,6 @@ using UnityEngine.ResourceManagement.AsyncOperations;
 using System.Text.RegularExpressions;
 using System.Linq;
 using System.Text;
-using NUnit.Framework.Internal;
 using UnityEngine.AddressableAssets.ResourceProviders.Tests;
 using UnityEngine.AddressableAssets.Tests;
 using UnityEngine.Lumin;
@@ -731,10 +730,10 @@ namespace AddressableAssetsIntegrationTests
             TestCatalogProviderCustomAssetBundleResource testProvider;
             SetupBundleForProviderTests(bundleName, "bundle", key, out location, out testProvider);
 
-            var op = m_Addressables.LoadAssetAsync<TestCatalogProviderCustomAssetBundleResource.TestAssetBundleResource>(key);
+            var op = m_Addressables.LoadAssetAsync<object>(key);
             yield return op;
 
-            Assert.IsTrue(op.Result.WasUsed);
+            Assert.IsTrue(testProvider.TestInternalOp.Result.WasUsed);
 
             op.Release();
         }
@@ -2671,12 +2670,11 @@ namespace AddressableAssetsIntegrationTests
 
         class TestCatalogProviderCustomAssetBundleResource : BundledAssetProvider
         {
-
             public TestAssetBundleResourceInternalOp TestInternalOp;
 
             internal class TestAssetBundleResourceInternalOp : AsyncOperationBase<TestAssetBundleResource>
             {
-                internal TestAssetBundleResource m_Resource;
+                TestAssetBundleResource m_Resource;
 
                 public TestAssetBundleResourceInternalOp(TestAssetBundleResource resource)
                 {
@@ -2706,18 +2704,13 @@ namespace AddressableAssetsIntegrationTests
                 ProviderOperation<Object> op = new ProviderOperation<Object>();
                 GroupOperation group = new GroupOperation();
                 TestInternalOp = new TestAssetBundleResourceInternalOp(new TestAssetBundleResource());
-                TestInternalOp.m_RM = Addressables.Instance.ResourceManager;
                 provideHandle.ResourceManager.Acquire(TestInternalOp.Handle);
                 provideHandle.ResourceManager.Acquire(TestInternalOp.Handle);
                 group.Init(new List<AsyncOperationHandle>() {new AsyncOperationHandle(TestInternalOp)});
                 op.Init(provideHandle.ResourceManager, null, provideHandle.Location, group.Handle);
-                op.m_RM = Addressables.Instance.ResourceManager;
                 ProvideHandle handle = new ProvideHandle(provideHandle.ResourceManager, op);
                 TestInternalOp.InvokeExecute();
                 base.Provide(handle);
-                provideHandle.Complete(TestInternalOp.Result, TestInternalOp.Status == AsyncOperationStatus.Succeeded, TestInternalOp.OperationException);
-                provideHandle.ResourceManager.Release(TestInternalOp.Handle);
-                provideHandle.ResourceManager.Release(TestInternalOp.Handle);
             }
 
             internal class TestAssetBundleResource : IAssetBundleResource

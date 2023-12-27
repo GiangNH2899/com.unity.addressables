@@ -59,7 +59,6 @@ static class AddressablesTestUtility
 #if UNITY_EDITOR
         bool currentIgnoreState = LogAssert.ignoreFailingMessages;
         LogAssert.ignoreFailingMessages = true;
-        EditorSettings.spritePackerMode = SpritePackerMode.SpriteAtlasV2;
 
         var RootFolder = string.Format(pathFormat, testType, suffix);
 
@@ -162,15 +161,12 @@ static class AddressablesTestUtility
         PrefabUtility.SaveAsPrefabAsset(go, hasBehaviorPath);
         settings.CreateOrMoveEntry(AssetDatabase.AssetPathToGUID(hasBehaviorPath), group, false, false);
 
-        List<SpriteAtlas> atlasesToPack = new List<SpriteAtlas>();
-        CreateFolderEntryAssets(RootFolder, settings, group, atlasesToPack);
+        CreateFolderEntryAssets(RootFolder, settings, group);
 
         CreateAsset(RootFolder + "/nonAddressableAsset.prefab", "nonAddressableAsset");
 
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh(ImportAssetOptions.ForceUpdate);
-
-        SpriteAtlasUtility.PackAtlases(atlasesToPack.ToArray(), EditorUserBuildSettings.activeBuildTarget);
 
         RunBuilder(settings, testType, suffix);
         LogAssert.ignoreFailingMessages = currentIgnoreState;
@@ -179,7 +175,7 @@ static class AddressablesTestUtility
     }
 
 #if UNITY_EDITOR
-    static void CreateFolderEntryAssets(string RootFolder, AddressableAssetSettings settings, AddressableAssetGroup group, List<SpriteAtlas> atlases)
+    static void CreateFolderEntryAssets(string RootFolder, AddressableAssetSettings settings, AddressableAssetGroup group)
     {
         AssetDatabase.CreateFolder(RootFolder, "folderEntry");
         string folderPath = RootFolder + "/folderEntry";
@@ -232,9 +228,8 @@ static class AddressablesTestUtility
             {
                 AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(AssetDatabase.GUIDToAssetPath(spriteGuid))
             });
-
             AssetDatabase.SaveAssetIfDirty(sa);
-            atlases.Add(sa);
+            SpriteAtlasUtility.PackAtlases(new SpriteAtlas[] { sa }, EditorUserBuildSettings.activeBuildTarget, false);
         }
 
         var folderEntry = settings.CreateOrMoveEntry(AssetDatabase.AssetPathToGUID(folderPath), group, false, false);

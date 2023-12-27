@@ -35,7 +35,6 @@ namespace AddressableTests.FastModeInitTests
         }
 
         [Test]
-        [Ignore("Scriptable Object Compilation issue")]
         public void FastModeInitialization_GetBuilderOfType_ReturnsDirectAndSubclasses()
         {
             var settings = base.CreateSettings("AddressableAssetSettings.Tests", Path.Combine(GetGeneratedAssetsPath(), "Settings"));

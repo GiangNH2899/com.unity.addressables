@@ -30,6 +30,7 @@ namespace UnityEngine.AddressableAssets.Initialization
 #endif
 
         static Dictionary<string, string> s_CachedValues = new Dictionary<string, string>();
+        public static Dictionary<string, string> CachedValues => s_CachedValues;
 
         internal static int GetCachedValueCount()
         {

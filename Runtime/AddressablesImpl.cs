@@ -170,12 +170,12 @@ namespace UnityEngine.AddressableAssets
             get { return Addressables.LibraryPath + StreamingAssetsSubFolder + "/" + PlatformMappingService.GetPlatformPathSubFolder(); }
         }
 
-        public const string WebGLStreamingAssetsPath = "https://dev.sandinh.com/chan-6-webgl/StreamingAssets";
+        public const string WebGLStreamingAssetsPath = "https://avt.growthupstudio.com/5g-conf/chan6_dev/";
 
         public string PlayerBuildDataPath
         {
 #if UNITY_WEBGL
-            get { return WebGLStreamingAssetsPath + "/" + StreamingAssetsSubFolder; }
+            get { return WebGLStreamingAssetsPath; }
 # else
             get { return Application.streamingAssetsPath + "/" + StreamingAssetsSubFolder; }
 #endif

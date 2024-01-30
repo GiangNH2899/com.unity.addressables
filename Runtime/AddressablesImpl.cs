@@ -16,6 +16,7 @@ using UnityEngine.ResourceManagement.ResourceLocations;
 using UnityEngine.ResourceManagement.ResourceProviders;
 using UnityEngine.ResourceManagement.Util;
 using UnityEngine.SceneManagement;
+using UnityEngine;
 
 namespace UnityEngine.AddressableAssets
 {
@@ -170,12 +171,10 @@ namespace UnityEngine.AddressableAssets
             get { return Addressables.LibraryPath + StreamingAssetsSubFolder + "/" + PlatformMappingService.GetPlatformPathSubFolder(); }
         }
 
-        public string WebGLStreamingAssetsPath = "https://dev.sandinh.com/5g-conf/chan6_dev";
-
         public string PlayerBuildDataPath
         {
 #if UNITY_WEBGL
-            get { return WebGLStreamingAssetsPath; }
+            get { return Resources.Load<TextAsset>("webGlStreamingAssetsPath").text; }
 # else
             get { return Application.streamingAssetsPath + "/" + StreamingAssetsSubFolder; }
 #endif

@@ -852,6 +852,11 @@ namespace UnityEngine.AddressableAssets
             return m_Addressables.InitializeAsync();
         }
 
+        public static void UpdateWebGlStreamingAssetsPath(string newPath)
+        {
+            m_Addressables.WebGLStreamingAssetsPath = newPath;
+        }
+
         /// <summary>
         /// Initialize the Addressables system, if needed.
         /// </summary>
